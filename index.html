@@ -466,6 +466,7 @@ function makePerson(ch){const color=ch.c;const g=new THREE.Group();
   // floating personality prop
   const prop=makeProp(typeOf(ch.n),color);prop.position.y=4.35;g.add(prop);
   g.userData.prop=prop;g.userData.head=head;g.userData.hat=hat;
+  g.scale.setScalar(0.7);   // smaller council figures
   return g;}
 
 const R=10.5, group=[];
