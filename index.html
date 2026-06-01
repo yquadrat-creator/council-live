@@ -449,8 +449,11 @@ function makePerson(ch){const color=ch.c;const g=new THREE.Group();
   const body=makeBody(st.shape||'egg',cloth);g.add(body);
   // big cute head (keeps the character colour for identity)
   const head=new THREE.Mesh(new THREE.SphereGeometry(.74,28,24),skin);head.position.y=2.85;g.add(head);
-  // eyes + pupils (face +Z → toward the centre stage)
-  [-.27,.27].forEach(dx=>{const e=new THREE.Mesh(new THREE.SphereGeometry(.16,16,16),white);e.position.set(dx,2.92,.58);g.add(e);const pu=new THREE.Mesh(new THREE.SphereGeometry(.07,12,12),black);pu.position.set(dx,2.92,.71);g.add(pu);});
+  // eyes + pupils + a cute sparkle highlight (face +Z → toward the centre stage)
+  [-.27,.27].forEach(dx=>{const e=new THREE.Mesh(new THREE.SphereGeometry(.17,16,16),white);e.position.set(dx,2.92,.58);g.add(e);const pu=new THREE.Mesh(new THREE.SphereGeometry(.08,12,12),black);pu.position.set(dx,2.92,.71);g.add(pu);const sp=new THREE.Mesh(new THREE.SphereGeometry(.03,8,8),white);sp.position.set(dx+.04,2.97,.77);g.add(sp);});
+  // rosy blush cheeks (cute)
+  const blushM=new THREE.MeshStandardMaterial({color:0xff9bb0,transparent:true,opacity:.6,emissive:0xff6f8a,emissiveIntensity:.35});
+  [-.44,.44].forEach(dx=>{const bl=new THREE.Mesh(new THREE.SphereGeometry(.13,14,12),blushM);bl.scale.set(1,.7,.4);bl.position.set(dx,2.72,.55);g.add(bl);});
   // smile
   const smile=new THREE.Mesh(new THREE.TorusGeometry(.2,.04,8,18,Math.PI),black);smile.position.set(0,2.66,.6);smile.rotation.set(Math.PI,0,0);g.add(smile);
   // bowtie
@@ -466,7 +469,7 @@ function makePerson(ch){const color=ch.c;const g=new THREE.Group();
   // floating personality prop
   const prop=makeProp(typeOf(ch.n),color);prop.position.y=4.35;g.add(prop);
   g.userData.prop=prop;g.userData.head=head;g.userData.hat=hat;
-  g.scale.setScalar(0.7);   // smaller council figures
+  g.scale.setScalar(0.5);   // half-size, cute
   return g;}
 
 const R=10.5, group=[];
