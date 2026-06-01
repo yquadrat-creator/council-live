@@ -662,27 +662,36 @@ async function pull(){
     // ── The Brain's career: it climbs the corporate ladder as it survives more
     //    real closed trades. Concrete, funny, and easy to root for — far more
     //    "grabbable" than an abstract %. Each rung needs more experience (XP).
+    // The PROVEN EDGE (avg R per trade) — skill, not seniority. Falls back to the
+    // sign of real P&L until the brain reports expectancy.
+    const exp=(typeof brainInfo!=='undefined'&&brainInfo&&typeof brainInfo.expectancy_r==='number')
+              ? brainInfo.expectancy_r : (net>0?0.05:(net<0?-0.12:0));
+    // The path from infant to god-mode. Upper tiers require a real, PROVEN edge:
+    // no amount of experience promotes a brain that loses money. minExp = required
+    // expectancy (R/trade). The real world: ~90% of traders never clear "Edge-Seeker".
     const LADDER=[
-      {at:0,    icon:'🍼', title:'Newborn',           tag:'just opened its eyes'},
-      {at:1,    icon:'☕', title:'Unpaid Intern',     tag:'mostly fetches coffee, watches the pros'},
-      {at:10,   icon:'📎', title:'Intern',            tag:'finally allowed to touch the keyboard'},
-      {at:25,   icon:'🪑', title:'Junior Trader',     tag:'got a desk… by the printer'},
-      {at:50,   icon:'💼', title:'Trader',            tag:'stopped asking permission for everything'},
-      {at:100,  icon:'📈', title:'Senior Trader',     tag:'has opinions now, and shares them'},
-      {at:200,  icon:'🗂️', title:'Desk Manager',      tag:'has people to blame now'},
-      {at:350,  icon:'🏦', title:'Portfolio Manager', tag:'earned the corner cubicle'},
-      {at:600,  icon:'🎯', title:'Director',          tag:'actually speaks in the meetings'},
-      {at:1000, icon:'🛎️', title:'VP of Trading',     tag:'owns a chair that reclines'},
-      {at:2000, icon:'🏆', title:'Managing Director', tag:'reserved parking spot'},
-      {at:4000, icon:'👑', title:'Partner',           tag:"name's on the door"},
+      {at:0,    minExp:-9, icon:'🥚', title:'Unhatched',      tag:'pure potential, zero scars'},
+      {at:3,    minExp:-9, icon:'🍼', title:'Newborn',        tag:'just opened its eyes'},
+      {at:10,   minExp:-9, icon:'👶', title:'Infant',         tag:'grabs at every shiny candle'},
+      {at:30,   minExp:-9, icon:'🧒', title:'Novice',         tag:'knows the words, not the music'},
+      {at:60,   minExp:-0.15, icon:'📚', title:'Student',     tag:'studying its own scars'},
+      {at:90,   minExp:-0.02, icon:'🔍', title:'Edge-Seeker', tag:'circling a real edge'},
+      {at:120,  minExp:0.04,  icon:'⚖️', title:'Break-Even',  tag:'finally stopped bleeding'},
+      {at:180,  minExp:0.10,  icon:'🌱', title:'Consistent',  tag:'a small, repeatable edge'},
+      {at:280,  minExp:0.18,  icon:'💹', title:'Skilled Trader', tag:'wins by design, not luck'},
+      {at:450,  minExp:0.25,  icon:'🎯', title:'Sharp',       tag:'calm hands, sharp reads'},
+      {at:700,  minExp:0.32,  icon:'🧠', title:'Master',      tag:'reads the tape like a language'},
+      {at:1100, minExp:0.40,  icon:'🏆', title:'Elite',       tag:'top 1% — thrives in chaos'},
+      {at:1800, minExp:0.48,  icon:'🦅', title:'Grandmaster', tag:'the market bends a little'},
+      {at:3000, minExp:0.58,  icon:'🐲', title:'Legend',      tag:'whispered about across desks'},
+      {at:5000, minExp:0.70,  icon:'🌌', title:'God-Mode',    tag:'absolute mastery — alpha at will'},
     ];
-    let ri=0; for(let i=0;i<LADDER.length;i++){ if(cl>=LADDER[i].at) ri=i; }
+    // Rank = highest tier whose EXPERIENCE *and* PROVEN EDGE are both earned.
+    let ri=0; for(let i=0;i<LADDER.length;i++){ if(cl>=LADDER[i].at && exp>=LADDER[i].minExp) ri=i; }
     const cur=LADDER[ri], nxt=LADDER[ri+1]||null;
-    // ── Build the shiny ladder rail: a glowing rung for every rank, lit up to
-    //    the Brain's current position. Bottom = Newborn, top = Partner. ──
     const rail=$('ladderRail'), n=LADDER.length;
     let rungsHTML='<div class="ladderFill" id="ladderFill"></div>';
-    for(let i=0;i<n;i++){ const cls='rung'+(i<ri?' done':'')+(i===ri?' cur':''); rungsHTML+=`<div class="${cls}" data-i="${LADDER[i].icon}" title="${LADDER[i].title} — ${LADDER[i].at}+ trades"></div>`; }
+    for(let i=0;i<n;i++){ const cls='rung'+(i<ri?' done':'')+(i===ri?' cur':''); const need=LADDER[i].minExp>-9?`, ≥${LADDER[i].minExp.toFixed(2)}R edge`:', learning'; rungsHTML+=`<div class="${cls}" data-i="${LADDER[i].icon}" title="${LADDER[i].title} — ${LADDER[i].at}+ trades${need}"></div>`; }
     rail.innerHTML=rungsHTML;
     const frac=n>1?ri/(n-1):1;
     $('ladderFill').style.height=`calc(7px + ${frac} * (100% - 14px))`;
@@ -690,12 +699,19 @@ async function pull(){
     $('growPct').textContent=cur.title;
     $('growTag').textContent='“'+cur.tag+'”';
     if(nxt){
-      const span=nxt.at-cur.at, prog=Math.max(0,Math.min(1,(cl-cur.at)/span));
+      // honest progress = the BINDING constraint (experience vs proven edge)
+      const xpProg=(cl-cur.at)/Math.max(1,nxt.at-cur.at);
+      const edgeSpan=nxt.minExp-cur.minExp;
+      const edgeProg=edgeSpan>0?(exp-cur.minExp)/edgeSpan:1;
+      const prog=Math.max(0,Math.min(1,Math.min(xpProg,edgeProg)));
       $('growBar').style.width=(prog*100)+'%';
-      $('growHint').innerHTML=`${cl} trades of experience · <b>${nxt.at-cl} more</b> to promotion → ${nxt.title} ${nxt.icon}`;
+      const parts=[];
+      if(cl<nxt.at) parts.push(`${nxt.at-cl} more trades`);
+      if(exp<nxt.minExp) parts.push(`a proven +${nxt.minExp.toFixed(2)}R edge`);
+      $('growHint').innerHTML=`${cl} trades · edge <b>${exp>=0?'+':''}${exp.toFixed(2)}R</b> · needs ${parts.join(' + ')||'consistency'} → ${nxt.title} ${nxt.icon}`;
     } else {
       $('growBar').style.width='100%';
-      $('growHint').innerHTML=`${cl} trades of experience · <b>top of the ladder</b> 👑`;
+      $('growHint').innerHTML=`${cl} trades · edge <b>+${exp.toFixed(2)}R</b> · <b>GOD-MODE — top of the mountain</b> 🌌`;
     }
     // 3D brain still pulses with seniority (career progress) + current conviction
     const conviction=Math.min(1,(inflList.reduce((s,x)=>s+Math.abs(x.infl-1),0)/inflList.length)/0.8);
