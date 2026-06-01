@@ -264,6 +264,8 @@ const characters=[
   {n:"Gap Greta",e:"Gap fade",c:0xe056fd,d:"Fades small overnight gaps toward fill. Skips earnings (live yfinance feed)."},
   {n:"Newswire Nia",e:"News sentiment",c:0xe8e2c8,d:"Reads the outside world — scores live Google/CNN news sentiment per asset into a soft narrative tilt the brain learns to trust or ignore."},
   {n:"Positioning Pax",e:"Smart money (COT)",c:0xb6ff5e,d:"Follows the big money — reads the CFTC Commitment of Traders report (large-speculator net positioning in gold, oil, indices, BTC) and leans with it."},
+  {n:"Trend Theo",e:"Trend-following",c:0x18a0ff,d:"Managed-futures trend rider — EMA stack + slope + Donchian + MACD with an ADX trend-strength gate. Stands down in chop."},
+  {n:"Relative-Strength Rex",e:"Cross-sectional",c:0xff5e3a,d:"Buys the leaders, shorts the laggards — ranks this asset against the whole basket across short and medium horizons."},
 ];
 const hex=c=>'#'+c.toString(16).padStart(6,'0'); const first=n=>n.split(' ').slice(1).join(' ')||n;
 const colorMap={}; characters.forEach(c=>colorMap[c.n]=c.c);
@@ -364,19 +366,21 @@ function makeProp(type,color){
 // Funny clothes + colours: each scholar gets a bold pattern and a silly hat so
 // they're instantly distinguishable at a glance.
 const STYLE={
-  Momentum:{pat:'tiger',a:'#ff8a1a',b:'#241000',arm:'#ff8a1a',hat:'cap'},
-  Reversal:{pat:'rainbow',arm:'#ff5fa2',hat:'party'},
-  Breakout:{pat:'zebra',a:'#f2f4ff',b:'#13161d',arm:'#cfd6e6',hat:'top'},
-  Volatility:{pat:'polka',a:'#f7d046',b:'#1a1a1a',arm:'#1a1a1a',hat:'grad'},
-  StatArb:{pat:'check',a:'#a66bff',b:'#2a1550',arm:'#a66bff',hat:'bowler'},
-  Breadth:{pat:'stripe',a:'#ff5b6e',b:'#fff0f3',arm:'#ff5b6e',hat:'crown'},
-  Contrarian:{pat:'stripe',a:'#ff6fc7',b:'#2a0a20',arm:'#ff6fc7',hat:'beanie'},
-  VWAP:{pat:'stripe',a:'#eaf2ff',b:'#1f5fd0',arm:'#1f5fd0',hat:'sailor'},
-  Opening:{pat:'check',a:'#2dd4bf',b:'#073b34',arm:'#2dd4bf',hat:'beret'},
-  Pivot:{pat:'tiger',a:'#ffc83d',b:'#3a2a00',arm:'#ffc83d',hat:'cowboy'},
-  Gap:{pat:'polka',a:'#e056fd',b:'#2a0a2e',arm:'#e056fd',hat:'party'},
-  Newswire:{pat:'stripe',a:'#e8e2c8',b:'#3a3526',arm:'#cfc8ad',hat:'bowler'},
-  Positioning:{pat:'check',a:'#b6ff5e',b:'#1d3a0c',arm:'#b6ff5e',hat:'top'},
+  Momentum:{pat:'tiger',a:'#ff8a1a',b:'#241000',arm:'#ff8a1a',hat:'cap',shape:'tall'},
+  Reversal:{pat:'rainbow',arm:'#ff5fa2',hat:'party',shape:'hourglass'},
+  Breakout:{pat:'zebra',a:'#f2f4ff',b:'#13161d',arm:'#cfd6e6',hat:'top',shape:'box'},
+  Volatility:{pat:'polka',a:'#f7d046',b:'#1a1a1a',arm:'#1a1a1a',hat:'grad',shape:'icosa'},
+  StatArb:{pat:'check',a:'#a66bff',b:'#2a1550',arm:'#a66bff',hat:'bowler',shape:'cylinder'},
+  Breadth:{pat:'stripe',a:'#ff5b6e',b:'#fff0f3',arm:'#ff5b6e',hat:'crown',shape:'wide'},
+  Contrarian:{pat:'stripe',a:'#ff6fc7',b:'#2a0a20',arm:'#ff6fc7',hat:'beanie',shape:'invcone'},
+  VWAP:{pat:'stripe',a:'#eaf2ff',b:'#1f5fd0',arm:'#1f5fd0',hat:'sailor',shape:'barrel'},
+  Opening:{pat:'check',a:'#2dd4bf',b:'#073b34',arm:'#2dd4bf',hat:'beret',shape:'cone'},
+  Pivot:{pat:'tiger',a:'#ffc83d',b:'#3a2a00',arm:'#ffc83d',hat:'cowboy',shape:'octa'},
+  Gap:{pat:'polka',a:'#e056fd',b:'#2a0a2e',arm:'#e056fd',hat:'party',shape:'dodeca'},
+  Newswire:{pat:'stripe',a:'#e8e2c8',b:'#3a3526',arm:'#cfc8ad',hat:'bowler',shape:'tetra'},
+  Positioning:{pat:'check',a:'#b6ff5e',b:'#1d3a0c',arm:'#b6ff5e',hat:'top',shape:'pyramid'},
+  Trend:{pat:'zebra',a:'#18a0ff',b:'#05213a',arm:'#18a0ff',hat:'cowboy',shape:'arrow'},
+  'Relative-Strength':{pat:'check',a:'#ff5e3a',b:'#3a1205',arm:'#ff5e3a',hat:'grad',shape:'gem'},
 };
 function patternTexture(kind,a,b){
   const cv=document.createElement('canvas');cv.width=128;cv.height=128;const x=cv.getContext('2d');
@@ -408,8 +412,33 @@ function makeHat(kind){const g=new THREE.Group();
     case 'cowboy':{const brim=new THREE.Mesh(new THREE.CylinderGeometry(.7,.7,.05,24),felt);brim.scale.z=1.2;g.add(brim);const c=new THREE.Mesh(new THREE.CylinderGeometry(.34,.4,.5,18),felt);c.position.y=.27;g.add(c);break;}
   }
   return g;}
+function makeBody(kind,mat){
+  let m;
+  switch(kind){
+    case 'box':      m=new THREE.Mesh(new THREE.BoxGeometry(1.4,1.7,1.1),mat); break;
+    case 'cone':     m=new THREE.Mesh(new THREE.ConeGeometry(1.0,1.95,30),mat); break;
+    case 'invcone':  m=new THREE.Mesh(new THREE.ConeGeometry(1.0,1.95,30),mat); m.rotation.z=Math.PI; break;
+    case 'cylinder': m=new THREE.Mesh(new THREE.CylinderGeometry(.82,.82,1.85,30),mat); break;
+    case 'barrel':   m=new THREE.Mesh(new THREE.CylinderGeometry(.9,.74,1.75,30),mat); break;
+    case 'tall':     m=new THREE.Mesh(new THREE.CylinderGeometry(.6,.74,2.05,26),mat); break;
+    case 'wide':     m=new THREE.Mesh(new THREE.SphereGeometry(1.0,30,24),mat); m.scale.set(1.22,.86,1.0); break;
+    case 'octa':     m=new THREE.Mesh(new THREE.OctahedronGeometry(1.18,0),mat); m.scale.set(1,1.22,1); break;
+    case 'dodeca':   m=new THREE.Mesh(new THREE.DodecahedronGeometry(1.08,0),mat); break;
+    case 'icosa':    m=new THREE.Mesh(new THREE.IcosahedronGeometry(1.1,0),mat); break;
+    case 'tetra':    m=new THREE.Mesh(new THREE.TetrahedronGeometry(1.3,0),mat); m.rotation.y=Math.PI/4; break;
+    case 'pyramid':  m=new THREE.Mesh(new THREE.ConeGeometry(1.15,1.7,4),mat); m.rotation.y=Math.PI/4; break;
+    case 'arrow':    m=new THREE.Mesh(new THREE.ConeGeometry(.72,2.2,22),mat); break;
+    case 'gem':      m=new THREE.Mesh(new THREE.OctahedronGeometry(1.12,0),mat); m.scale.set(.82,1.45,.82); break;
+    case 'hourglass':{const grp=new THREE.Group();
+      const top=new THREE.Mesh(new THREE.ConeGeometry(.92,.98,26),mat); top.position.y=.5;
+      const bot=new THREE.Mesh(new THREE.ConeGeometry(.92,.98,26),mat); bot.position.y=-.5; bot.rotation.z=Math.PI;
+      grp.add(top,bot); m=grp; break;}
+    default:         m=new THREE.Mesh(new THREE.SphereGeometry(.92,28,24),mat); m.scale.set(.82,1.05,.82);
+  }
+  m.position.y=1.35; return m;
+}
 function makePerson(ch){const color=ch.c;const g=new THREE.Group();
-  const st=STYLE[ch.n.split(' ')[0]]||{pat:'stripe',a:'#888',b:'#222',arm:'#888',hat:'top'};
+  const st=STYLE[ch.n.split(' ')[0]]||{pat:'stripe',a:'#888',b:'#222',arm:'#888',hat:'top',shape:'egg'};
   const skin=new THREE.MeshStandardMaterial({color,metalness:.2,roughness:.5,emissive:color,emissiveIntensity:.32});
   const armMat=new THREE.MeshStandardMaterial({color:st.arm,roughness:.6,metalness:.1});
   const dark=new THREE.MeshStandardMaterial({color:0x1a2030,roughness:.7});
@@ -417,7 +446,7 @@ function makePerson(ch){const color=ch.c;const g=new THREE.Group();
   const black=new THREE.MeshStandardMaterial({color:0x101620});
   // patterned clothes (egg body)
   const cloth=new THREE.MeshStandardMaterial({map:patternTexture(st.pat,st.a,st.b),roughness:.6,metalness:.04});
-  const body=new THREE.Mesh(new THREE.SphereGeometry(.92,28,24),cloth);body.scale.set(.82,1.05,.82);body.position.y=1.35;g.add(body);
+  const body=makeBody(st.shape||'egg',cloth);g.add(body);
   // big cute head (keeps the character colour for identity)
   const head=new THREE.Mesh(new THREE.SphereGeometry(.74,28,24),skin);head.position.y=2.85;g.add(head);
   // eyes + pupils (face +Z → toward the centre stage)
