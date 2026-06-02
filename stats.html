@@ -220,43 +220,51 @@ let chartMode='R', _closedSorted=[];
 function drawEdge(){
   const cv=$('edge'),dpr=window.devicePixelRatio||1,w=cv.clientWidth,h=cv.clientHeight;
   cv.width=w*dpr;cv.height=h*dpr;const x=cv.getContext('2d');x.scale(dpr,dpr);x.clearRect(0,0,w,h);
-  const series=[0];let cum=0;
-  _closedSorted.forEach(t=>{cum+=chartMode==='R'?(+t.pnl_r||0):(+t.real_profit||0);series.push(cum);});
+  // cumulative value at each trade's REAL timestamp → a true time series
+  let cum=0;const pts=[];
+  _closedSorted.forEach(t=>{cum+=chartMode==='R'?(+t.pnl_r||0):(+t.real_profit||0);pts.push({t:new Date(t.exit_ts).getTime(),v:cum});});
   $('edgeNow').textContent=chartMode==='R'?((cum>=0?'+':'')+cum.toFixed(1)+'R'):money2(cum);
   $('edgeNow').style.color=cum>=0?'var(--green)':'var(--red)';
-  if(series.length<3){x.fillStyle='#5a6e95';x.font='12px -apple-system';x.textAlign='center';x.fillText('edge curve builds as trades close',w/2,h/2);$('edgeFoot').textContent=_closedSorted.length+' closed';return;}
-  const mn=Math.min(...series),mx=Math.max(...series),pad=6,gw=w-pad*2,gh=h-pad*2-10;
-  const X=i=>pad+i/(series.length-1)*gw, Y=v=>pad+(mx===mn?gh/2:(1-(v-mn)/(mx-mn))*gh);
-  // zero baseline
-  const yz=Y(0);x.strokeStyle='rgba(140,165,210,.22)';x.setLineDash([4,4]);x.lineWidth=1;x.beginPath();x.moveTo(pad,yz);x.lineTo(w-pad,yz);x.stroke();x.setLineDash([]);
-  const pos=cum>=0;const c1=pos?'rgba(39,255,176,':'rgba(255,77,109,';
-  // area fill
-  const grad=x.createLinearGradient(0,pad,0,pad+gh);grad.addColorStop(0,c1+'.34)');grad.addColorStop(1,c1+'0)');
-  x.beginPath();x.moveTo(X(0),Y(series[0]));series.forEach((v,i)=>x.lineTo(X(i),Y(v)));x.lineTo(X(series.length-1),pad+gh);x.lineTo(X(0),pad+gh);x.closePath();x.fillStyle=grad;x.fill();
-  // glow line
-  x.beginPath();series.forEach((v,i)=>i?x.lineTo(X(i),Y(v)):x.moveTo(X(i),Y(v)));
-  x.lineWidth=2.4;x.strokeStyle=pos?'#34ffb6':'#ff5e7c';x.shadowColor=pos?'#27ffb0':'#ff4d6d';x.shadowBlur=12;x.lineJoin='round';x.stroke();x.shadowBlur=0;
-  // head dot
-  const hx=X(series.length-1),hy=Y(series[series.length-1]);
-  x.beginPath();x.arc(hx,hy,3.4,0,7);x.fillStyle='#fff';x.shadowColor=pos?'#27ffb0':'#ff4d6d';x.shadowBlur=14;x.fill();x.shadowBlur=0;
-  // ── TIMELINE x-axis: oldest → mid → now ──
-  const N=_closedSorted.length;
-  if(N>=2){
-    const tl=ts=>{const d=new Date(ts),now=new Date();
-      return d.toDateString()===now.toDateString()
-        ? d.toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'})
-        : (d.getMonth()+1)+'/'+d.getDate();};
-    x.fillStyle='#7188ad';x.font='9px -apple-system';
-    [[0,'left'],[Math.floor(N/2),'center'],[N-1,'right']].forEach(([idx,al])=>{
-      const t=_closedSorted[idx];if(!t)return;x.textAlign=al;
-      const xi=Math.max(pad+14,Math.min(w-pad-14,X(idx+1)));
-      x.fillText(idx===N-1?'now':tl(t.exit_ts),xi,h-2);
-      // faint tick
-      x.strokeStyle='rgba(140,165,210,.18)';x.lineWidth=1;x.beginPath();x.moveTo(X(idx+1),pad);x.lineTo(X(idx+1),pad+gh);x.stroke();
-    });
-    x.textAlign='left';
+  const N=pts.length;
+  if(N<2){x.fillStyle='#5a6e95';x.font='12px -apple-system';x.textAlign='center';x.fillText('edge curve builds as trades close',w/2,h/2);x.textAlign='left';$('edgeFoot').textContent=N+' brain trades';return;}
+  const tMax=Math.max(pts[N-1].t,Date.now());
+  const tMin=pts[0].t-Math.max(60000,(tMax-pts[0].t)*0.03);   // small lead-in from 0
+  pts.unshift({t:tMin,v:0});
+  if(tMax>pts[pts.length-1].t+30000) pts.push({t:tMax,v:cum});  // flat line to "now"
+  const vals=pts.map(p=>p.v),mn=Math.min(0,...vals),mx=Math.max(0,...vals);
+  const pad=6,gw=w-pad*2,gh=h-pad*2-12;
+  const X=t=>pad+(tMax===tMin?gw/2:(t-tMin)/(tMax-tMin)*gw);
+  const Y=v=>pad+(mx===mn?gh/2:(1-(v-mn)/(mx-mn))*gh);
+  // ── TIME AXIS (trading-chart style): adaptive date or intraday gridlines ──
+  const spanD=(tMax-tMin)/86400000;
+  x.font='9px -apple-system';
+  if(spanD>=1){
+    const stepD=Math.max(1,Math.ceil(spanD/5));            // ~5 date labels max
+    let d=new Date(tMin);d.setHours(0,0,0,0);d=new Date(d.getTime()+86400000); // first midnight
+    for(;d.getTime()<=tMax;d=new Date(d.getTime()+stepD*86400000)){
+      const xx=X(d.getTime());if(xx<pad+8||xx>w-pad-24)continue;
+      x.strokeStyle='rgba(140,165,210,.13)';x.lineWidth=1;x.beginPath();x.moveTo(xx,pad);x.lineTo(xx,pad+gh);x.stroke();
+      x.fillStyle='#7188ad';x.textAlign='center';x.fillText((d.getMonth()+1)+'/'+d.getDate(),xx,h-2);
+    }
+  }else{
+    for(let k=1;k<4;k++){const tt=tMin+(tMax-tMin)*k/4,xx=X(tt);
+      x.strokeStyle='rgba(140,165,210,.11)';x.lineWidth=1;x.beginPath();x.moveTo(xx,pad);x.lineTo(xx,pad+gh);x.stroke();
+      x.fillStyle='#7188ad';x.textAlign='center';x.fillText(new Date(tt).toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'}),xx,h-2);}
   }
-  $('edgeFoot').textContent=N+' brain trades · '+(N>1?ago(_closedSorted[0].exit_ts)+' ago → now':'');
+  x.fillStyle='#9ab8e0';x.textAlign='right';x.fillText('now',w-pad-1,h-2);x.textAlign='left';
+  // ── zero baseline ──
+  const yz=Y(0);x.strokeStyle='rgba(140,165,210,.28)';x.setLineDash([4,4]);x.lineWidth=1;x.beginPath();x.moveTo(pad,yz);x.lineTo(w-pad,yz);x.stroke();x.setLineDash([]);
+  const pos=cum>=0,c1=pos?'rgba(39,255,176,':'rgba(255,77,109,';
+  // area fill
+  const grad=x.createLinearGradient(0,pad,0,pad+gh);grad.addColorStop(0,c1+'.32)');grad.addColorStop(1,c1+'0)');
+  x.beginPath();x.moveTo(X(pts[0].t),Y(pts[0].v));pts.forEach(p=>x.lineTo(X(p.t),Y(p.v)));
+  x.lineTo(X(pts[pts.length-1].t),pad+gh);x.lineTo(X(pts[0].t),pad+gh);x.closePath();x.fillStyle=grad;x.fill();
+  // glow line
+  x.beginPath();pts.forEach((p,i)=>i?x.lineTo(X(p.t),Y(p.v)):x.moveTo(X(p.t),Y(p.v)));
+  x.lineWidth=2.4;x.strokeStyle=pos?'#34ffb6':'#ff5e7c';x.shadowColor=pos?'#27ffb0':'#ff4d6d';x.shadowBlur=12;x.lineJoin='round';x.stroke();x.shadowBlur=0;
+  // head dot at "now"
+  const last=pts[pts.length-1];x.beginPath();x.arc(X(last.t),Y(last.v),3.4,0,7);x.fillStyle='#fff';x.shadowColor=pos?'#27ffb0':'#ff4d6d';x.shadowBlur=14;x.fill();x.shadowBlur=0;
+  $('edgeFoot').textContent=N+' brain trades · '+ago(_closedSorted[0].exit_ts)+' ago → now';
 }
 
 /* ── lists ── */
