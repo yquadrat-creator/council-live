@@ -104,6 +104,19 @@
   .row .big{font-size:15px;font-weight:800;line-height:1.1;} .big.up{color:var(--green);} .big.down{color:var(--red);}
   .row .small{font-size:9.5px;color:var(--dim);}
   .empty{text-align:center;color:var(--dim);padding:26px;font-size:12.5px;}
+  /* closed-trade expandable item + actively-managed-exit blip */
+  .citem{border-bottom:1px solid rgba(95,135,215,.08);}
+  .citem:last-child{border-bottom:0;}
+  .citem .crow{border-bottom:0;cursor:pointer;}
+  .blip{display:inline-block;width:7px;height:7px;border-radius:50%;background:var(--mag);
+        box-shadow:0 0 9px var(--mag);margin-left:7px;vertical-align:middle;animation:blink 1.1s ease-in-out infinite;}
+  @keyframes blink{0%,100%{opacity:1;transform:scale(1);}50%{opacity:.2;transform:scale(.55);}}
+  .tdetail{max-height:0;overflow:hidden;transition:max-height .3s ease;padding:0 12px;}
+  .citem.open .tdetail{max-height:150px;padding-bottom:12px;}
+  .why{font-size:11.5px;color:#e3edff;background:rgba(0,229,255,.06);border-left:3px solid var(--cyan);
+       border-radius:0 8px 8px 0;padding:7px 10px;margin:0 0 9px;line-height:1.42;}
+  .tstats{display:grid;grid-template-columns:1fr 1fr;gap:6px 16px;font-size:11px;color:var(--dim);}
+  .tstats b{color:#eaf3ff;font-weight:700;}
   /* scholar bar */
   .sbar{flex:1;height:6px;background:#0a1326;border-radius:4px;overflow:hidden;margin:0 4px;}
   .sbar i{display:block;height:100%;border-radius:4px;}
@@ -301,7 +314,7 @@ function drawEdge(){
 }
 
 /* ── lists ── */
-let _pos=[],_closed=[],_scholars=[],curTab='live';
+let _pos=[],_closed=[],_scholars=[],curTab='live',_expanded=new Set();
 function renderList(){
   const el=$('list');
   if(curTab==='live'){
@@ -315,9 +328,22 @@ function renderList(){
     const rows=[..._closed].sort((a,b)=>new Date(b.exit_ts)-new Date(a.exit_ts)).slice(0,120);
     if(!rows.length){el.innerHTML='<div class="empty">No closed trades yet.</div>';return;}
     el.innerHTML=rows.map(t=>{const long=(t.action||'').toLowerCase()==='long',r=+t.pnl_r||0,$$=+t.real_profit||0,win=r>=0;
-      return `<div class="row"><span class="sym">${sym(t.asset)}</span><span class="dir ${long?'l':'s'}">${long?'LONG':'SHORT'}</span>
-        <span class="det">${t.exit_ts?ago(t.exit_ts)+' ago':''}</span>
-        <span class="rt"><div class="big ${win?'up':'down'}">${win?'+':''}${r.toFixed(2)}R</div><div class="small">${$$>=0?'+':'-'}$${Math.abs($$).toFixed(2)}</div></span></div>`;}).join('');
+      const key=String(t.position_id||t.ticket||t.exit_ts||'');
+      const emoji=t.exit_emoji||(win?'🎯':'📉'), why=(t.exit_reason||'Closed at the broker.').replace(/"/g,'&quot;');
+      const blip=t.active_exit?`<i class="blip" title="actively-managed exit"></i>`:'';
+      return `<div class="citem ${_expanded.has(key)?'open':''}" data-k="${key}">
+        <div class="row crow" title="${emoji} ${why}">
+          <span class="sym">${sym(t.asset)}${blip}</span><span class="dir ${long?'l':'s'}">${long?'LONG':'SHORT'}</span>
+          <span class="det">${t.exit_ts?ago(t.exit_ts)+' ago':''} <span style="opacity:.8">${emoji}</span></span>
+          <span class="rt"><div class="big ${win?'up':'down'}">${win?'+':''}${r.toFixed(2)}R</div><div class="small">${$$>=0?'+':'-'}$${Math.abs($$).toFixed(2)}</div></span>
+        </div>
+        <div class="tdetail">
+          <div class="why">${emoji} ${t.exit_reason||'Closed at the broker.'}</div>
+          <div class="tstats">
+            <span>Entry <b>${fmt(t.entry)}</b></span><span>Exit <b>${t.exit_price!=null?fmt(t.exit_price):'—'}</b></span>
+            <span>Stop-loss <b>${fmt(t.stop)}</b></span><span>Take-profit <b>${t.take_profit!=null?fmt(t.take_profit):'—'}</b></span>
+          </div>
+        </div></div>`;}).join('');
   } else {
     const rows=[..._scholars].filter(s=>s).slice(0,16);
     if(!rows.length){el.innerHTML='<div class="empty">Scholars warming up…</div>';return;}
@@ -335,6 +361,10 @@ function renderList(){
 const sym=s=>String(s||'').replace(/USD$/,'/USD').replace('//','/');
 const fmt=v=>v!=null?(+v).toLocaleString('en-US',{maximumFractionDigits:5}):'—';
 document.querySelectorAll('.tab').forEach(t=>t.onclick=()=>{curTab=t.dataset.t;document.querySelectorAll('.tab').forEach(x=>x.classList.toggle('on',x===t));renderList();});
+// tap a closed trade to expand its entry/exit/SL/TP + why-it-left explanation
+$('list').addEventListener('click',e=>{const it=e.target.closest('.citem');if(!it||curTab!=='closed')return;
+  const k=it.dataset.k;if(_expanded.has(k))_expanded.delete(k);else _expanded.add(k);
+  if(navigator.vibrate)navigator.vibrate(8);renderList();});
 document.querySelectorAll('.seg b').forEach(b=>b.onclick=()=>{chartMode=b.dataset.m;document.querySelectorAll('.seg b').forEach(x=>x.classList.toggle('on',x===b));drawEdge();});
 $('heroCard').onclick=()=>{curTab='live';document.querySelectorAll('.tab').forEach(x=>x.classList.toggle('on',x.dataset.t==='live'));renderList();$('list').scrollIntoView({behavior:'smooth',block:'center'});};
 
