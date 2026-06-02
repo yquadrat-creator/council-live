@@ -63,7 +63,7 @@
   .seg{display:inline-flex;background:rgba(8,14,30,.7);border:1px solid var(--line);border-radius:11px;padding:2px;}
   .seg b{font-size:11px;font-weight:800;color:var(--dim);padding:4px 10px;border-radius:9px;cursor:pointer;transition:.2s;}
   .seg b.on{color:#04121a;background:linear-gradient(180deg,#7ff0ff,var(--cyan));box-shadow:0 0 12px rgba(0,229,255,.4);}
-  canvas#edge{width:100%;height:132px;display:block;margin-top:6px;}
+  canvas#edge{width:100%;height:152px;display:block;margin-top:6px;}
   .chartFoot{font-size:10px;color:var(--dim);margin-top:2px;text-align:right;}
 
   /* RANK */
@@ -112,6 +112,15 @@
   .srow .top{display:flex;align-items:center;gap:10px;}
   .sins{font-size:10px;color:#93a7cc;font-style:italic;line-height:1.35;padding-left:2px;}
 
+  /* EXITS card */
+  .exits{padding:15px 18px;}
+  .erow{display:flex;align-items:center;gap:8px;padding:7px 0;border-bottom:1px solid rgba(95,135,215,.07);font-size:12px;}
+  .erow:last-child{border-bottom:0;}
+  .erow .rg{min-width:62px;font-weight:800;color:#cfe0ff;}
+  .erow .m{flex:1;display:flex;gap:12px;color:var(--dim);font-size:11px;}
+  .erow .m b{color:#eaf3ff;font-weight:700;}
+  .erow .dim{color:var(--dim);font-size:11px;font-style:italic;}
+  .eff{font-weight:800;} .eff.g{color:var(--green);} .eff.y{color:#ffd24a;} .eff.r{color:var(--red);}
   footer{text-align:center;margin-top:16px;font-size:10px;letter-spacing:1px;color:#46587b;cursor:pointer;}
   footer:active{color:var(--cyan);}
   .flash{animation:fl .6s ease;} @keyframes fl{0%{color:var(--cyan);text-shadow:0 0 18px var(--cyan);}100%{}}
@@ -158,6 +167,11 @@
     <div class="barwrap"><div class="bar" id="rBar"></div></div>
     <div class="hint" id="rHint">—</div>
   </div>
+</div>
+
+<div class="card exits">
+  <div class="k">Exits · learning <span style="color:var(--mag);font-weight:800">· how it manages trades</span></div>
+  <div id="exitRows"><div class="erow"><span class="dim">warming up…</span></div></div>
 </div>
 
 <div class="grid">
@@ -232,26 +246,45 @@ function drawEdge(){
   pts.unshift({t:tMin,v:0});
   if(tMax>pts[pts.length-1].t+30000) pts.push({t:tMax,v:cum});  // flat line to "now"
   const vals=pts.map(p=>p.v),mn=Math.min(0,...vals),mx=Math.max(0,...vals);
-  const pad=6,gw=w-pad*2,gh=h-pad*2-12;
+  const pad=6,labelH=12,volH=11,gw=w-pad*2,gh=h-pad*2-labelH-volH;
+  const volBot=pad+gh+2+volH;                          // bottom of the volume sub-panel
+  const oneDay=86400000,spanD=(tMax-tMin)/oneDay;
   const X=t=>pad+(tMax===tMin?gw/2:(t-tMin)/(tMax-tMin)*gw);
   const Y=v=>pad+(mx===mn?gh/2:(1-(v-mn)/(mx-mn))*gh);
-  // ── TIME AXIS (trading-chart style): adaptive date or intraday gridlines ──
-  const spanD=(tMax-tMin)/86400000;
+  // ── VOLUME sub-panel: trades that CLOSED each day (one faint bar per day) ──
+  const dayKey=ts=>{const d=new Date(ts);return d.getFullYear()+'-'+(d.getMonth()+1)+'-'+d.getDate();};
+  const counts={};_closedSorted.forEach(t=>{const k=dayKey(t.exit_ts);counts[k]=(counts[k]||0)+1;});
+  const maxC=Math.max(1,...Object.values(counts));
+  const bw=Math.max(2,Math.min(16,gw/Math.max(1,spanD)*0.55));
+  for(let dd=new Date(tMin);dd.getTime()<=tMax+oneDay;dd=new Date(dd.getTime()+oneDay)){
+    const k=dd.getFullYear()+'-'+(dd.getMonth()+1)+'-'+dd.getDate(),cnt=counts[k]||0;if(!cnt)continue;
+    const cx=X(Math.min(tMax,Math.max(tMin,dd.getTime()+oneDay/2)));
+    const bh=Math.max(2,cnt/maxC*volH);
+    x.fillStyle='rgba(0,229,255,.30)';x.fillRect(cx-bw/2,volBot-bh,bw,bh);
+  }
+  // ── DATE axis (adaptive) with the day's closed-trade count ──
   x.font='9px -apple-system';
   if(spanD>=1){
-    const stepD=Math.max(1,Math.ceil(spanD/5));            // ~5 date labels max
-    let d=new Date(tMin);d.setHours(0,0,0,0);d=new Date(d.getTime()+86400000); // first midnight
-    for(;d.getTime()<=tMax;d=new Date(d.getTime()+stepD*86400000)){
-      const xx=X(d.getTime());if(xx<pad+8||xx>w-pad-24)continue;
-      x.strokeStyle='rgba(140,165,210,.13)';x.lineWidth=1;x.beginPath();x.moveTo(xx,pad);x.lineTo(xx,pad+gh);x.stroke();
-      x.fillStyle='#7188ad';x.textAlign='center';x.fillText((d.getMonth()+1)+'/'+d.getDate(),xx,h-2);
+    const stepD=Math.max(1,Math.ceil(spanD/5));
+    let d=new Date(tMin);d.setHours(0,0,0,0);d=new Date(d.getTime()+oneDay);
+    for(;d.getTime()<=tMax;d=new Date(d.getTime()+stepD*oneDay)){
+      const xx=X(d.getTime());if(xx<pad+12||xx>w-pad-30)continue;
+      x.strokeStyle='rgba(140,165,210,.12)';x.lineWidth=1;x.beginPath();x.moveTo(xx,pad);x.lineTo(xx,pad+gh);x.stroke();
+      const k=d.getFullYear()+'-'+(d.getMonth()+1)+'-'+d.getDate();
+      x.fillStyle='#7188ad';x.textAlign='center';
+      x.fillText((d.getMonth()+1)+'/'+d.getDate()+(counts[k]?'·'+counts[k]:''),xx,h-2);
     }
   }else{
     for(let k=1;k<4;k++){const tt=tMin+(tMax-tMin)*k/4,xx=X(tt);
-      x.strokeStyle='rgba(140,165,210,.11)';x.lineWidth=1;x.beginPath();x.moveTo(xx,pad);x.lineTo(xx,pad+gh);x.stroke();
+      x.strokeStyle='rgba(140,165,210,.1)';x.lineWidth=1;x.beginPath();x.moveTo(xx,pad);x.lineTo(xx,pad+gh);x.stroke();
       x.fillStyle='#7188ad';x.textAlign='center';x.fillText(new Date(tt).toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'}),xx,h-2);}
   }
   x.fillStyle='#9ab8e0';x.textAlign='right';x.fillText('now',w-pad-1,h-2);x.textAlign='left';
+  // ── Y-AXIS value labels (R or $) at the top & bottom of the range ──
+  const fmtY=v=>chartMode==='R'?((v>=0?'+':'')+v.toFixed(Math.abs(v)>=10?0:1)+'R'):money(v);
+  x.font='9px -apple-system';x.fillStyle='#6f86ad';x.textAlign='left';
+  x.fillText(fmtY(mx),pad+1,pad+8);
+  if(mn<-0.05) x.fillText(fmtY(mn),pad+1,pad+gh-2);
   // ── zero baseline ──
   const yz=Y(0);x.strokeStyle='rgba(140,165,210,.28)';x.setLineDash([4,4]);x.lineWidth=1;x.beginPath();x.moveTo(pad,yz);x.lineTo(w-pad,yz);x.stroke();x.setLineDash([]);
   const pos=cum>=0,c1=pos?'rgba(39,255,176,':'rgba(255,77,109,';
@@ -318,13 +351,30 @@ let toastT;function toast(msg,win){const el=$('toast');el.innerHTML=msg;el.style
 function onClose(t){const win=(+t.pnl_r||0)>=0;chime(win);if(navigator.vibrate)navigator.vibrate(win?[40,40,40]:90);
   toast(`${win?'✓':'✕'} ${sym(t.asset)} closed <b>${win?'+':''}${(+t.pnl_r||0).toFixed(2)}R</b>`,win);}
 
+/* ── exits (management brain) ── */
+function renderExits(mb){
+  const el=$('exitRows');if(!mb||mb.error){el.innerHTML='<div class="erow"><span class="dim">warming up…</span></div>';return;}
+  const order=['Bull','Sideways','Bear'];
+  const rows=order.filter(r=>mb[r]).map(r=>{const c=mb[r];
+    const eff=c.exit_efficiency, hasN=(c.trades||0)>=1;
+    const effPct=eff==null?'—':Math.round(eff*100)+'%';
+    const cls=eff==null?'':eff>=0.8?'g':eff>=0.6?'y':'r';
+    const gb=c.avg_giveback_r==null?'—':c.avg_giveback_r.toFixed(2)+'R';
+    return `<div class="erow"><span class="rg">${r}</span>
+      <span class="m">${hasN?`eff <b class="eff ${cls}">${effPct}</b>`:'<span class="dim">learning…</span>'}
+        ${hasN?`· give-back <b>${gb}</b>`:''}
+        · trail <b>${(c.trail_mult||2.6).toFixed(1)}×</b></span></div>`;}).join('');
+  el.innerHTML=rows||'<div class="erow"><span class="dim">warming up…</span></div>';
+}
+
 /* ── main loop ── */
 let _lastClosedTs=null,_seeded=false;
 async function tick(){
   try{
-    const [perf,acc,brain,sch,trades]=await Promise.all([
+    const [perf,acc,brain,sch,trades,mbrain]=await Promise.all([
       get('/api/performance'),get('/api/account'),get('/api/brain').catch(()=>({})),
-      get('/api/scholars').catch(()=>({scholars:[]})),get('/api/trades').catch(()=>[])]);
+      get('/api/scholars').catch(()=>({scholars:[]})),get('/api/trades').catch(()=>[]),
+      get('/api/manage_brain').catch(()=>({}))]);
     $('live').classList.remove('off');$('liveTxt').textContent='LIVE';
     const bal=acc.balance??perf.balance??0,eq=acc.equity??perf.equity??bal;
     _pos=acc.positions||[];const open=_pos.length;const floatPnl=_pos.reduce((s,p)=>s+(+p.profit||0),0);
@@ -346,6 +396,7 @@ async function tick(){
     // source the edge curve uses — not the broker account total (which includes
     // scale-ins, trimmed duplicates and pre-reset trades).
     renderRank(_closedSorted.length||(typeof brain.experience==='number'?Math.round(brain.experience):0), exp);
+    renderExits(mbrain);
     drawEdge();renderList();
     // trade-close detection
     const newest=_closedSorted.length?_closedSorted[_closedSorted.length-1].exit_ts:null;
