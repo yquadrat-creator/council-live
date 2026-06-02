@@ -112,7 +112,8 @@
   .srow .top{display:flex;align-items:center;gap:10px;}
   .sins{font-size:10px;color:#93a7cc;font-style:italic;line-height:1.35;padding-left:2px;}
 
-  footer{text-align:center;margin-top:16px;font-size:10px;letter-spacing:1px;color:#46587b;}
+  footer{text-align:center;margin-top:16px;font-size:10px;letter-spacing:1px;color:#46587b;cursor:pointer;}
+  footer:active{color:var(--cyan);}
   .flash{animation:fl .6s ease;} @keyframes fl{0%{color:var(--cyan);text-shadow:0 0 18px var(--cyan);}100%{}}
 
   /* TOAST */
@@ -266,9 +267,12 @@ function renderList(){
     const mx=Math.max(0.2,...rows.map(s=>Math.abs(+s.expectancy_r||0)));
     el.innerHTML=rows.map(s=>{const e=+s.expectancy_r||0,pos=e>=0,w=Math.min(100,Math.abs(e)/mx*100);
       const col=s.benched?'#6b7b9a':(pos?'var(--green)':'var(--red)');
-      return `<div class="row ${s.benched?'benched':''}"><span class="sym" style="min-width:96px;font-size:12.5px">${(s.name||'').split(' ')[0]} ${(s.name||'').split(' ').slice(1).join(' ')}</span>
+      const ins=s.insight?`<div class="sins">“${s.insight}”</div>`:'';
+      return `<div class="row srow ${s.benched?'benched':''}"><div class="top">
+        <span class="sym" style="min-width:96px;font-size:12.5px">${s.name||''}</span>
         <span class="sbar"><i style="width:${w}%;background:${col};box-shadow:0 0 8px ${col}"></i></span>
-        <span class="rt"><div class="big ${pos?'up':'down'}" style="font-size:13px">${pos?'+':''}${e.toFixed(2)}R</div><div class="small">${s.experience||0} trades${s.benched?' · benched':''}</div></span></div>`;}).join('');
+        <span class="rt"><div class="big ${pos?'up':'down'}" style="font-size:13px">${pos?'+':''}${e.toFixed(2)}R</div><div class="small">${s.experience||0} trades${s.benched?' · benched':''}</div></span>
+        </div>${ins}</div>`;}).join('');
   }
 }
 const sym=s=>String(s||'').replace(/USD$/,'/USD').replace('//','/');
@@ -323,9 +327,10 @@ async function tick(){
       fresh.slice(-3).forEach(onClose);
     }
     _lastClosedTs=newest;_seeded=true;
-    $('foot').textContent='updated '+new Date().toLocaleTimeString();
+    $('foot').textContent='updated '+new Date().toLocaleTimeString()+' · tap to refresh ↻';
   }catch(e){$('live').classList.add('off');$('liveTxt').textContent='RECONNECTING';$('foot').textContent='reconnecting…';}
 }
+$('foot').onclick=()=>{$('foot').textContent='refreshing…';tick();if(navigator.vibrate)navigator.vibrate(15);};
 window.addEventListener('resize',()=>drawEdge());
 tick();setInterval(tick,5000);
 document.addEventListener('visibilitychange',()=>{if(!document.hidden)tick();});
