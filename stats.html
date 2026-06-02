@@ -191,7 +191,7 @@
   <div class="card stat"><div class="k">Balance</div><div class="v cyan" id="balance">—</div></div>
   <div class="card stat"><div class="k">Net P&amp;L</div><div class="v" id="net">—</div></div>
   <div class="card stat"><div class="k">Closed · acct</div><div class="v" id="closed">—</div></div>
-  <div class="card stat"><div class="k">Free margin</div><div class="v cyan" id="margin">—</div></div>
+  <div class="card stat"><div class="k">Margin level</div><div class="v" id="marginLvl">—</div><div class="small" id="margin" style="margin-top:5px;color:var(--dim)">—</div></div>
   <div class="card stat wide">
     <div class="k">Win rate</div><div class="v" id="wr">—</div>
     <div class="wr"><div class="w" id="wrW" style="width:0"></div><div class="l" id="wrL" style="width:0"></div></div>
@@ -417,7 +417,16 @@ async function tick(){
     const cl=perf.closed??0,w=perf.wins??0,l=perf.losses??0,wr=cl?Math.round(w/cl*100):0;
     setV('closed',cl);setV('wr',cl?wr+'%':'—');$('wrW').style.width=(cl?w/cl*100:0)+'%';$('wrL').style.width=(cl?l/cl*100:0)+'%';
     setV('wins',w+' wins');setV('losses',l+' losses');
-    setV('margin',acc.margin_free!=null?money(acc.margin_free):'—');
+    // margin level = equity / used-margin × 100 (used = equity − free)
+    if(acc.margin_free!=null && eq){
+      const used=eq-acc.margin_free, lvl=used>1?eq/used*100:null;
+      const ml=$('marginLvl');
+      if(lvl!=null){ setV('marginLvl',Math.round(lvl)+'%');
+        ml.className='v '+(lvl>=250?'green':lvl>=150?'cyan':'red'); }
+      else { setV('marginLvl','∞'); ml.className='v green'; }
+      setV('margin','$'+Math.round(acc.margin_free).toLocaleString('en-US')+' free'
+        +(lvl!=null&&lvl<200?(lvl<130?' · 🛟 de-risking':' · ⏸️ entries paused'):''));
+    } else { setV('marginLvl','—'); setV('margin','—'); }
     _scholars=(sch&&sch.scholars)||[];
     _closed=(Array.isArray(trades)?trades:[]).filter(t=>t.status==='closed'&&t.exit_ts);
     _closedSorted=[..._closed].sort((a,b)=>new Date(a.exit_ts)-new Date(b.exit_ts));
