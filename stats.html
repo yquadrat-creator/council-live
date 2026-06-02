@@ -163,7 +163,7 @@
 <div class="grid">
   <div class="card stat"><div class="k">Balance</div><div class="v cyan" id="balance">—</div></div>
   <div class="card stat"><div class="k">Net P&amp;L</div><div class="v" id="net">—</div></div>
-  <div class="card stat"><div class="k">Closed</div><div class="v" id="closed">—</div></div>
+  <div class="card stat"><div class="k">Closed · acct</div><div class="v" id="closed">—</div></div>
   <div class="card stat"><div class="k">Free margin</div><div class="v cyan" id="margin">—</div></div>
   <div class="card stat wide">
     <div class="k">Win rate</div><div class="v" id="wr">—</div>
@@ -239,8 +239,24 @@ function drawEdge(){
   // head dot
   const hx=X(series.length-1),hy=Y(series[series.length-1]);
   x.beginPath();x.arc(hx,hy,3.4,0,7);x.fillStyle='#fff';x.shadowColor=pos?'#27ffb0':'#ff4d6d';x.shadowBlur=14;x.fill();x.shadowBlur=0;
-  const span=_closedSorted.length>1?(ago(_closedSorted[0].exit_ts)+' ago → now'):'';
-  $('edgeFoot').textContent=_closedSorted.length+' closed · '+span;
+  // ── TIMELINE x-axis: oldest → mid → now ──
+  const N=_closedSorted.length;
+  if(N>=2){
+    const tl=ts=>{const d=new Date(ts),now=new Date();
+      return d.toDateString()===now.toDateString()
+        ? d.toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'})
+        : (d.getMonth()+1)+'/'+d.getDate();};
+    x.fillStyle='#7188ad';x.font='9px -apple-system';
+    [[0,'left'],[Math.floor(N/2),'center'],[N-1,'right']].forEach(([idx,al])=>{
+      const t=_closedSorted[idx];if(!t)return;x.textAlign=al;
+      const xi=Math.max(pad+14,Math.min(w-pad-14,X(idx+1)));
+      x.fillText(idx===N-1?'now':tl(t.exit_ts),xi,h-2);
+      // faint tick
+      x.strokeStyle='rgba(140,165,210,.18)';x.lineWidth=1;x.beginPath();x.moveTo(X(idx+1),pad);x.lineTo(X(idx+1),pad+gh);x.stroke();
+    });
+    x.textAlign='left';
+  }
+  $('edgeFoot').textContent=N+' brain trades · '+(N>1?ago(_closedSorted[0].exit_ts)+' ago → now':'');
 }
 
 /* ── lists ── */
@@ -314,11 +330,14 @@ async function tick(){
     setV('closed',cl);setV('wr',cl?wr+'%':'—');$('wrW').style.width=(cl?w/cl*100:0)+'%';$('wrL').style.width=(cl?l/cl*100:0)+'%';
     setV('wins',w+' wins');setV('losses',l+' losses');
     setV('margin',acc.margin_free!=null?money(acc.margin_free):'—');
-    const exp=(typeof brain.expectancy_r==='number')?brain.expectancy_r:(net>0?.05:net<0?-.12:0);
-    renderRank(cl,exp);
     _scholars=(sch&&sch.scholars)||[];
     _closed=(Array.isArray(trades)?trades:[]).filter(t=>t.status==='closed'&&t.exit_ts);
     _closedSorted=[..._closed].sort((a,b)=>new Date(a.exit_ts)-new Date(b.exit_ts));
+    const exp=(typeof brain.expectancy_r==='number')?brain.expectancy_r:(net>0?.05:net<0?-.12:0);
+    // Rank reflects the BRAIN's own track record (its council trades) — the same
+    // source the edge curve uses — not the broker account total (which includes
+    // scale-ins, trimmed duplicates and pre-reset trades).
+    renderRank(_closedSorted.length||(typeof brain.experience==='number'?Math.round(brain.experience):0), exp);
     drawEdge();renderList();
     // trade-close detection
     const newest=_closedSorted.length?_closedSorted[_closedSorted.length-1].exit_ts:null;
